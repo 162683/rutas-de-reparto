@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rutas diarias</title>
+    <link rel="stylesheet" href="./styles/style.css">
+    <!-- Leaflet CSS y JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<body>
+    <header id="header-principal">
+        <img src="./assets/logo_segundo_rey.png" alt="Logo empresa" style="margin:0 auto 10px auto;display:block;">
+   
+    </header>
+     <div class="header-title-contacto">
+         
+          <button id="btn-contacto" type="button">
+            <span style="display:inline-block;">
+              <img src="./assets/icono telefono.png" alt="Teléfono" style="width:28px;height:28px;display:block;" />
+            </span>
+          </button>
+        </div>
+       
+    <main>
+        <div id="map"></div>
+        <div id="admin-panel">
+        <h2 id="titulo-admin-panel">Administrar repartidores</h2>
+        <!-- Título para repartidor -->
+        <h2 id="titulo-rutas-reparto" style="display:none;text-align:center;color:#1976d2;margin:18px 0 10px 0;font-size:1.3em;">Mis rutas de reparto</h2>
+        <!-- Login repartidor solo visible en modo móvil -->
+        <div id="login-repartidor" style="display:none;margin-bottom:18px;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:100000;background:rgba(255,255,255,0.97);display:flex;align-items:center;justify-content:center;">
+          <form id="form-login-repartidor" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #0002;padding:32px 28px;min-width:320px;max-width:90vw;display:flex;flex-direction:column;gap:18px;align-items:center;">
+            <h2 style="margin-bottom:10px;font-size:1.3em;color:#1976d2;">Introduce tus credenciales</h2>
+            <label for="login-usuario" style="width:100%;text-align:left;">Usuario:</label>
+            <input type="text" id="login-usuario" name="login-usuario" required autocomplete="username" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #bbb;">
+            <label for="login-password" style="width:100%;text-align:left;">Contraseña:</label>
+            <input type="password" id="login-password" name="login-password" required autocomplete="current-password" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #bbb;">
+            <button type="submit" style="margin-top:10px;padding:10px 0;width:100%;background:#1976d2;color:#fff;border:none;border-radius:6px;font-size:1.1em;">Entrar</button>
+          </form>
+        </div>
+        <form id="repartidor-form">
+            <label for="usuario">Usuario:</label>
+            <input type="text" id="usuario" name="usuario" required>
+            <label for="nombre">Nombre:</label>
+            <input type="text" id="nombre" name="nombre" required>
+            <label for="apellido">Apellidos:</label>
+            <input type="text" id="apellido" name="apellido" required>
+            <label for="fecha-ruta">Fecha de la ruta:</label>
+            <input type="date" id="fecha-ruta" name="fecha-ruta" required>
+            <label for="zona">Zona:</label>
+            <input type="text" id="zona" name="zona" required>
+             <!-- Campo de información adicional visible para ambos -->
+    <label for="info-adicional">Información adicional:</label>
+    <textarea id="info-adicional" name="info-adicional" rows="3" style="width:100%;border-radius:6px;border:1px solid #bbb;padding:8px;margin-bottom:10px;"></textarea>
+             <div id="lugares-container">
+                <h4>Lugares de entrega</h4>
+                <div class="lugar-entrega">
+                    <label>Dirección:</label>
+                    <input type="text" name="direccion[]" required>
+                    <label>Hora:</label>
+                    <input type="time" name="hora[]" required>
+                </div>
+            </div>
+            <button type="button" onclick="agregarLugar()">Agregar otro lugar</button>
+            <button type="submit">Guardar</button>
+        </form>
+        <div id="lista-repartidores"></div>
+        <!-- Filtros para el mapa de la empresa -->
+        <div id="filtros-mapa-empresa" class="panel-bloque solo-empresa" style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; text-align:left;">
+            <h3 style="margin-top:0; margin-bottom:10px; color:#333;">Filtrar Rutas en Mapa (Empresa)</h3>
+            <div style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+                <div>
+                    <label for="filtro-fecha-ruta" style="display:block; margin-bottom:5px;">Fecha:</label>
+                    <input type="date" id="filtro-fecha-ruta" name="filtro-fecha-ruta" style="padding:6px 10px;border-radius:6px;border:1px solid #bbb;">
+                </div>
+                <div>
+                    <label for="filtro-usuario-ruta" style="display:block; margin-bottom:5px;">Repartidor:</label>
+                    <select id="filtro-usuario-ruta" name="filtro-usuario-ruta" style="padding:6px 10px;border-radius:6px;border:1px solid #bbb;"><option value="todos">Todos los repartidores</option></select>
+                </div>
+                <button id="btn-aplicar-filtros-mapa" type="button" style="padding:7px 15px; background:#1a73e8; color:white; border:none; border-radius:5px; cursor:pointer;">Aplicar Filtros</button>
+                <button id="btn-mostrar-todas-rutas-mapa" type="button" style="padding:7px 15px; background:#6c757d; color:white; border:none; border-radius:5px; cursor:pointer;">Mostrar Todas</button>
+            </div>
+        </div>
+        <div class="panel-bloque solo-empresa" id="panel-borrar-rutas">
+          <button class="btn-borrar" onclick="borrarRutas()">Borrar rutas del día anterior</button>
+        </div>
+        <!-- ÁREA DE SUBIDA DE ARCHIVOS VISUALES: visible para empresa y repartidor -->
+        <div class="panel-bloque" id="panel-subida-archivos">
+          <label for="archivoExcel"><strong>Subir archivo visual:</strong></label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <input type="file" id="archivoExcel" accept=".xlsx,.xls,.csv,.txt,.json,.pdf,.doc,.docx,.png,.jpg,.jpeg" style="display:block;margin:0 auto 10px auto;" />
+          </div>
+          <div id="drop-excel" style="border:2px dashed #1a73e8; border-radius:8px; padding:18px; color:#1a73e8; background:#f8fbff; text-align:center; cursor:pointer; max-width:340px; margin:0 auto 10px auto;">
+            Arrastra y suelta aquí tu archivo (Excel, CSV, TXT, JSON, PDF, Word, Imagen, etc.) o haz clic para seleccionarlo
+          </div>
+          <small style="color:#888;">Formatos permitidos: Excel, CSV, TXT, JSON, PDF, Word, PNG, JPG...</small>
+        </div>
+        <!-- ARCHIVOS VISUALES SUBIDOS: visible para empresa y repartidor -->
+        <div class="panel-bloque" id="panel-archivos-visuales">
+          <label><strong>Archivos visuales subidos:</strong></label>
+          <div id="archivos-subidos" style="display:flex;flex-wrap:wrap;gap:18px;justify-content:center;margin:10px 0 0 0;"></div>
+          <!-- Selector de destinatario solo visible para empresa -->
+          <div class="solo-empresa" style="margin:10px 0 0 0;">
+            <label for="destinatarioArchivo"><strong>Seleccionar destinatario:</strong></label>
+            <select id="destinatarioArchivo" style="padding:6px 10px;border-radius:6px;border:1px solid #1a73e8;margin-left:8px;">
+              <option value="todos">Todos los repartidores</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-bloque solo-empresa" id="panel-qr">
+          <label><strong>Acceso rápido desde móvil:</strong></label>
+          <div id="qrcode"></div>
+          <small>Escanea este código QR para abrir la web en tu móvil.</small>
+        </div>
+        <div class="panel-bloque solo-empresa" id="panel-admin-usuarios">
+          <label><strong>Administrar usuarios:</strong></label>
+          <div id="admin-usuarios"></div>
+        </div>
+        <script>
+        // Panel de administración de usuarios se renderiza desde script.js
+        </script>
+      </div>
+      </div>
+    <footer>
+        <p>&copy; 2023 Rutas diarias. Todos los derechos reservados.</p>
+    </footer>
+    <!-- Info de ruta se inserta dinámicamente por JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="js/script.js"></script>
+  </body>
+</html>
