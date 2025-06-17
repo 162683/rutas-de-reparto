@@ -117,6 +117,16 @@
           <label><strong>Administrar usuarios:</strong></label>
           <div id="admin-usuarios"></div>
         </div>
+        <!-- Modal para mostrar rutas de la empresa -->
+<div id="modal-rutas-empresa" class="modal" style="display:none;position:fixed;z-index:10001;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.35);align-items:center;justify-content:center;">
+  <div class="modal-content" style="background:#fff;padding:28px 18px 18px 18px;border-radius:12px;max-width:700px;width:95vw;max-height:90vh;overflow-y:auto;position:relative;">
+    <button id="cerrar-modal-rutas" style="position:absolute;top:10px;right:10px;font-size:1.5em;background:none;border:none;cursor:pointer;">&times;</button>
+    <h2 style="margin-top:0;color:#1976d2;text-align:center;">Rutas creadas</h2>
+    <div id="contenido-modal-rutas"></div>
+  </div>
+</div>
+<!-- Botón para abrir el modal de rutas (solo empresa) -->
+<button id="abrir-modal-rutas" class="solo-empresa" style="margin:10px auto 18px auto;display:block;padding:10px 22px;font-size:1.1em;background:#1976d2;color:#fff;border:none;border-radius:8px;cursor:pointer;">Ver todas las rutas</button>
         <script>
         // Panel de administración de usuarios se renderiza desde script.js
         </script>

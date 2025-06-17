@@ -88,7 +88,7 @@ function mostrarMarcadoresRepartidor(repartidor, colorIdx) {
         const marker = L.marker(latlng, {
           title: `${lugar.direccion} - ${lugar.hora}`
         }).addTo(map);
-        marker.bindPopup(`<b>${lugar.direccion}</b><br>Hora: ${lugar.hora}`);
+        marker.bindPopup(`<b>${lugar.direccion}</b><br>Hora: ${lugar.hora}${lugar.incidencia ? '<br><span style=\'color:#e53935;\'>Incidencia: ' + lugar.incidencia + '</span>' : ''}`);
         marcadores.push(marker);
         map.setView(latlng, 13);
       }
@@ -338,7 +338,7 @@ function ajustarPanelesPorUsuario() {
 })();
 // --- FIN INDICADOR DE MODO ---
 
-// --- AUTODETECCIÓN Y ASIGNACIÓN DE USUARIO SEGÚN MODO (SOLO EMPRESA) ---
+// --- AUTODETECCIÓN Y ASIGNACIÓN DE USUARIO SEGUN MODO (SOLO EMPRESA) ---
 let usuarioActual = null;
 if (!esMovil()) {
   // En PC, siempre forzar modo empresa
@@ -369,7 +369,6 @@ if (usuarioActual && usuarioActual.usuario !== 'empresa') {
 } else {
   document.getElementById('repartidor-form').style.display = 'block';
 }
-// ...existing code...
 document.getElementById('repartidor-form').addEventListener('submit', function(e) {
   e.preventDefault();
   // Leer usuario, nombre, zona e información adicional del formulario
@@ -380,7 +379,8 @@ document.getElementById('repartidor-form').addEventListener('submit', function(e
   let fechaRuta = document.getElementById('fecha-ruta').value; // NUEVO: Campo de fecha
   const direcciones = Array.from(document.getElementsByName('direccion[]')).map(input => input.value);
   const horas = Array.from(document.getElementsByName('hora[]')).map(input => input.value);
-  const lugares = direcciones.map((direccion, i) => ({ direccion, hora: horas[i] }));
+  const incidencias = Array.from(document.getElementsByName('incidencia[]')).map(input => input.value);
+  const lugares = direcciones.map((direccion, i) => ({ direccion, hora: horas[i], incidencia: incidencias[i] }));
   if (!usuario || !nombre || !zona || !fechaRuta || lugares.length === 0 || lugares.some(l => !l.direccion || !l.hora)) { // NUEVO: Validar fechaRuta
     mostrarFeedback('Por favor, completa todos los campos antes de guardar.');
     return;
@@ -417,6 +417,8 @@ document.getElementById('repartidor-form').addEventListener('submit', function(e
     <div class="lugar-entrega">
       <label>Dirección:</label>
       <input type="text" name="direccion[]" required>
+      <label>Incidencia:</label>
+      <input type="text" name="incidencia[]" placeholder="Describe incidencia si existe">
       <label>Hora:</label>
       <input type="time" name="hora[]" required>
     </div>`;
@@ -447,59 +449,8 @@ function mostrarRepartidores() {
   let usuarioFiltro = usuarioActual && usuarioActual.usuario ? String(usuarioActual.usuario).trim().toLowerCase() : null;
 
   if (usuarioActual && usuarioActual.usuario === 'empresa') {
-    if (repartidores.length === 0) {
-      lista.innerHTML = '<p>No hay repartidores registrados.</p>';
-      return;
-    }
-    let html = repartidores.map((r, idx) => {
-      // Asegurar que el objeto repartidor tenga todas las propiedades necesarias
-      if (!r.usuario) r.usuario = '';
-      if (!r.nombre) r.nombre = '';
-      if (!r.fechaRuta) r.fechaRuta = 'N/A'; // NUEVO: Mostrar fecha
-      if (!r.zona) r.zona = '';
-      if (!Array.isArray(r.lugares)) r.lugares = [];
-      const total = r.lugares.length;
-      const realizadas = r.lugares.filter(l => l.realizada).length;
-      const pendientes = total - realizadas;
-      const lugares = r.lugares;
-      return `
-      <div class="repartidor-card" data-repartidor-usuario="${r.usuario}" data-repartidor-fecha="${r.fechaRuta}" style="margin-bottom:22px;padding:14px 18px;border:1px solid #cce3ff;border-radius:8px;background:#f4faff;box-shadow:0 1px 6px #0002;">
-        <div style="font-size:1.1em;font-weight:bold;color:#155ab6;margin-bottom:4px;">${r.nombre} <span style='font-size:0.95em;color:#555;'>(Usuario: ${r.usuario || ''})</span></div>
-        <div style="margin-bottom:6px;"><strong>Zona:</strong> ${r.zona}</div>
-        <div style="margin-bottom:6px;"><strong>Fecha Ruta:</strong> ${r.fechaRuta}</div>
-        <div style="margin-bottom:6px;"><strong>Información adicional:</strong> ${r.infoAdicional || ''}</div>
-        <div style="margin-bottom:8px;">
-          <span style="background:#e3f0ff;color:#155ab6;padding:3px 10px;border-radius:12px;font-size:0.98em;margin-right:8px;">Total: ${total}</span>
-          <span style="background:#d4edda;color:#256029;padding:3px 10px;border-radius:12px;font-size:0.98em;margin-right:8px;">✔ Realizadas: ${realizadas}</span>
-          <span style="background:#fff3cd;color:#856404;padding:3px 10px;border-radius:12px;font-size:0.98em;">⏳ Pendientes: ${pendientes}</span>
-        </div>
-        <div><strong>Entregas:</strong></div>
-        <ul style="margin:0 0 0 12px;padding:0;list-style:disc;">
-          ${lugares.map((l, i) => `
-            <li style='margin-bottom:4px;display:flex;align-items:center;gap:8px;'>
-              <input type='text' value='${l.direccion || ''}' id='dir-edit-${idx}-${i}' style='width:180px;margin-right:4px;'>
-              <input type='time' value='${l.hora || ''}' id='hora-edit-${idx}-${i}' style='width:90px;margin-right:4px;'>
-              <button onclick='window.guardarEdicionEntrega(${idx},${i})' title='Guardar cambios' style='background:#1a73e8;color:#fff;border:none;border-radius:4px;padding:2px 8px;'>💾</button>
-              <button onclick='window.eliminarEntregaEmpresa(${idx},${i})' title='Eliminar entrega' style='background:#e53935;color:#fff;border:none;border-radius:4px;padding:2px 8px;'>🗑️</button>
-              <button onclick="window.abrirNavegacionGoogleMaps && window.abrirNavegacionGoogleMaps('${(l.direccion || '').replace(/'/g, "\\'")}', '${l.hora}')" title="Navegar" style="background:#4caf50;color:#fff;border:none;border-radius:4px;padding:2px 8px;">🚗</button>
-            </li>
-          `).join('')}
-        </ul>
-        <div class="archivos-por-ruta-container" style="margin-top:10px; padding-top:10px; border-top:1px dashed #ccc;">
-            <label for="archivo-ruta-${idx}" style="font-weight:bold; font-size:0.95em; display:block; margin-bottom:5px;">Subir archivo para esta ruta:</label>
-            <input type="file" id="archivo-ruta-${idx}" class="input-archivo-ruta" data-repartidor-idx="${idx}" style="margin-bottom:8px; font-size:0.9em;">
-            <div id="lista-archivos-ruta-${idx}" class="lista-archivos-especificos" style="font-size:0.9em; display:flex; flex-direction:column; gap:5px;">
-                ${(r.archivosEspecificos || []).map((archivo, archivoIdx) => `
-                    <div style="display:flex; justify-content:space-between; align-items:center; padding:3px 5px; background-color: #e9ecef; border-radius:3px;">
-                        <a href="${archivo.datosArchivo}" download="${archivo.nombreArchivo}" title="Descargar ${archivo.nombreArchivo}" style="color:#0056b3; text-decoration:none;">${archivo.nombreArchivo} (${archivo.tipoArchivo})</a>
-                        <button onclick="eliminarArchivoEspecifico(${idx}, ${archivoIdx})" style="background:transparent; border:none; color:red; cursor:pointer; font-size:1.1em;" title="Eliminar archivo">🗑️</button>
-                    </div>`).join('')}
-            </div>
-        </div>
-      </div>
-      `}).join('');
-    lista.innerHTML = html;
-    adjuntarEventListenersArchivosRuta(); // NUEVO: Adjuntar listeners a los nuevos inputs
+    // No mostrar rutas en pantalla principal, solo en el modal
+    lista.innerHTML = '';
     return;
   }
 
@@ -523,8 +474,15 @@ function mostrarRepartidores() {
         <ul style="margin:0;padding:0;list-style:none;">
           ${(Array.isArray(r.lugares) ? r.lugares : []).map((l, i) =>
             l.realizada
-              ? `<li style='margin-bottom:8px;display:flex;align-items:center;gap:10px;background:#e8f5e9;padding:7px 10px;border-radius:6px;'><span style='color:#43a047;font-weight:bold;font-size:1.1em;'>✔ Realizada</span> <span style='color:#333;'>${l.direccion} - ${l.hora}</span></li>`
-              : `<li style='margin-bottom:8px;display:flex;align-items:center;gap:10px;background:#f8fbff;padding:7px 10px;border-radius:6px;'>\n                <button style="padding:2px 10px;border-radius:4px;background:#2196f3;color:#fff;border:none;font-size:0.97em;" onclick="mostrarRuta(${r._idx},${i});return false;">Ver ruta en la web</button>\n                <button style="padding:2px 10px;border-radius:4px;background:#4caf50;color:#fff;border:none;font-size:0.97em;" onclick="abrirNavegacionGoogleMaps('${(l.direccion || '').replace(/'/g, "\\'")}')">Google Maps</button>\n                <button style="padding:2px 10px;border-radius:4px;background:#43a047;color:#fff;border:none;font-size:0.97em;" onclick="eliminarEntrega(${r._idx},${i});return false;">Marcar como realizada</button>\n                <span style='color:#333;'>${l.direccion} - ${l.hora}</span>\n              </li>`
+              ? `<li style='margin-bottom:8px;display:flex;align-items:center;gap:10px;background:#e8f5e9;padding:7px 10px;border-radius:6px;'><span style='color:#43a047;font-weight:bold;font-size:1.1em;'>✔ Realizada</span> <span style='color:#333;'>${l.direccion} - ${l.hora}${l.incidencia ? ' <span style="color:#e53935;">Incidencia: ' + l.incidencia + '</span>' : ''}</span></li>`
+              : `<li style='margin-bottom:8px;display:flex;align-items:center;gap:10px;background:#f8fbff;padding:7px 10px;border-radius:6px;'>
+                <button style="padding:2px 10px;border-radius:4px;background:#2196f3;color:#fff;border:none;font-size:0.97em;" onclick="mostrarRuta(${r._idx},${i});return false;">Ver ruta en la web</button>
+                <button style="padding:2px 10px;border-radius:4px;background:#4caf50;color:#fff;border:none;font-size:0.97em;" onclick=\"abrirNavegacionGoogleMaps('${(l.direccion || '').replace(/'/g, "\\'")}')\">Google Maps</button>
+                <button style=\"padding:2px 10px;border-radius:4px;background:#43a047;color:#fff;border:none;font-size:0.97em;\" onclick=\"eliminarEntrega(${r._idx},${i});return false;\">Marcar como realizada</button>
+                <input type='text' value='${l.incidencia ? l.incidencia.replace(/"/g, '&quot;') : ''}' placeholder='Incidencia' style='width:120px;margin-right:4px;' onchange='actualizarIncidenciaRepartidor(${r._idx},${i}, this.value)'>
+                <input type='file' class='input-archivo-ruta-repartidor' data-repartidor-idx='${r._idx}' data-lugar-idx='${i}' style='font-size:0.9em;'>
+                <span style='color:#333;'>${l.direccion} - ${l.hora}${l.incidencia ? ' <span style="color:#e53935;">Incidencia: ' + l.incidencia + '</span>' : ''}</span>
+              </li>`
           ).join('')}
         </ul>
       </div>`
@@ -621,7 +579,7 @@ function actualizarVistaMapaEmpresa(repartidoresFiltrados) {
                     const marker = L.marker(latlng, {
                         title: `${repartidor.nombre}: ${lugar.direccion} - ${lugar.hora}`
                     }).addTo(map);
-                    marker.bindPopup(`<b>${repartidor.nombre}</b><br>${lugar.direccion}<br>Hora: ${lugar.hora}<br>Fecha: ${repartidor.fechaRuta}`).addTo(featuresLayerEmpresa);
+                    marker.bindPopup(`<b>${repartidor.nombre}</b><br>${lugar.direccion}<br>Hora: ${lugar.hora}<br>Fecha: ${repartidor.fechaRuta}${lugar.incidencia ? '<br><span style=\'color:#e53935;\'>Incidencia: ' + lugar.incidencia + '</span>' : ''}`).addTo(featuresLayerEmpresa);
                     // No agregar a `marcadores` globales si es para la capa de empresa
 
                     // Si hay más de un punto para este repartidor, dibujar polilínea
@@ -1187,79 +1145,106 @@ function mostrarMapaTrasLoginRepartidor() {
   }
 })();
 
-// --- FORZAR usuario EN TODOS LOS REPARTIDORES AL GUARDAR Y CARGAR ---
-function normalizarRepartidores() {
-  let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
-  repartidores = repartidores.map(r => {
-    if (!r.usuario && r.nombre) {
-      // Si no tiene usuario, intentar asignar por nombre (solo si hay coincidencia en usuarios)
-      let usuarios = JSON.parse(localStorage.getItem('usuarios') || '[]');
-      let u = usuarios.find(u => u.nombre === r.nombre);
-      if (u) r.usuario = u.usuario;
-    }
-    if (r.usuario) r.usuario = String(r.usuario).trim().toLowerCase();
-    return r;
-  });
-  localStorage.setItem('repartidores', JSON.stringify(repartidores));
-}
-// Llamar al cargar y al guardar
-normalizarRepartidores();
-
-// --- ABRIR NAVEGACIÓN EN GOOGLE MAPS ---
-window.abrirNavegacionGoogleMaps = function(direccion, hora) {
-  if (!direccion) return;
-  // Codificar la dirección para URL
-  var url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(direccion);
-  window.open(url, '_blank');
-};
-
-// --- AGREGAR BOTÓN Y FUNCIÓN PARA ELIMINAR ARCHIVOS VISUALES SUBIDOS ---
-window.mostrarArchivosSubidos = function() {
-  const cont = document.getElementById('archivos-subidos');
-  if (!cont) return;
-  let archivos = JSON.parse(localStorage.getItem('archivosVisuales') || '[]');
-  let usuarioFiltro = usuarioActual && usuarioActual.usuario ? String(usuarioActual.usuario).trim().toLowerCase() : null;
-  // Mostrar todos los archivos en modo empresa
-  if (usuarioActual && usuarioActual.usuario === 'empresa') {
-    // No filtrar, mostrar todos
-  } else if (usuarioActual && usuarioActual.usuario !== 'empresa') {
-    archivos = archivos.filter(a => a.destinatario === usuarioFiltro || a.destinatario === 'todos');
-  }
-  if (!archivos.length) {
-    cont.innerHTML = '<p style="color:#888;">No hay archivos subidos.</p>';
-    return;
-  }
-  cont.innerHTML = archivos.map((a, idx) => {
-    let btnBorrar = `<button onclick="borrarArchivoVisual(${idx})" style='display:block;margin:6px auto 0 auto;padding:2px 10px;background:#e53935;color:#fff;border:none;border-radius:4px;cursor:pointer;'>Eliminar</button>`;
-    if (["png","jpg","jpeg"].includes(a.tipo)) {
-      return `<div style='text-align:center;'><img src='${a.data}' alt='${a.nombre}' style='max-width:120px;max-height:120px;border-radius:8px;box-shadow:0 1px 6px #0002;'><br><small>${a.nombre}</small>${btnBorrar}</div>`;
-    } else if (["pdf"].includes(a.tipo)) {
-      return `<div style='text-align:center;'><a href='${a.data}' target='_blank' style='color:#1976d2;text-decoration:underline;'>${a.nombre}</a><br><small>PDF</small>${btnBorrar}</div>`;
-    } else {
-      return `<div style='text-align:center;'><a href='${a.data}' download='${a.nombre}' style='color:#1976d2;text-decoration:underline;'>${a.nombre}</a><br><small>${a.tipo.toUpperCase()}</small>${btnBorrar}</div>`;
-    }
-  }).join('');
-};
-
-window.borrarArchivoVisual = function(idx) {
-  let archivos = JSON.parse(localStorage.getItem('archivosVisuales') || '[]');
-  // Filtrar archivos según el usuario actual (empresa puede borrar todos, repartidor solo los suyos)
-  if (usuarioActual && usuarioActual.usuario !== 'empresa') {
-    let usuarioFiltro = String(usuarioActual.usuario).trim().toLowerCase();
-    let archivosFiltrados = archivos.filter(a => a.destinatario === usuarioFiltro || a.destinatario === 'todos');
-    let archivoAEliminar = archivosFiltrados[idx];
-    // Buscar el índice real en el array original
-    let realIdx = archivos.findIndex(a => a === archivoAEliminar);
-    if (realIdx !== -1) archivos.splice(realIdx, 1);
+// --- FORZAR VISTA EMPRESA O REPARTIDOR SEGÚN LOGIN ---
+function forzarVistaPorUsuario() {
+  const usuarioLS = localStorage.getItem('usuarioActual');
+  let usuario = null;
+  try {
+    usuario = usuarioLS ? JSON.parse(usuarioLS) : null;
+  } catch(e) {}
+  if (usuario && usuario.usuario && usuario.usuario !== 'empresa') {
+    // Vista repartidor
+    document.getElementById('login-repartidor').style.display = 'none';
+    document.getElementById('repartidor-form').style.display = 'none';
+    document.querySelectorAll('.solo-empresa').forEach(el => el.style.display = 'none');
+    document.getElementById('map').style.display = 'block';
+    const btnContacto = document.getElementById('btn-contacto');
+    if (btnContacto) btnContacto.style.display = 'block';
+    mostrarRepartidores();
+  } else if (window.esMovil && esMovil()) {
+    // Móvil sin login: solo login repartidor
+    document.getElementById('login-repartidor').style.display = 'flex';
+    document.getElementById('repartidor-form').style.display = 'none';
+    document.querySelectorAll('.solo-empresa').forEach(el => el.style.display = 'none');
+    document.getElementById('map').style.display = 'none';
+    const btnContacto = document.getElementById('btn-contacto');
+    if (btnContacto) btnContacto.style.display = 'block';
   } else {
-    archivos.splice(idx, 1);
+    // Vista empresa (PC o sin login en PC)
+    document.getElementById('login-repartidor').style.display = 'none';
+    document.getElementById('repartidor-form').style.display = 'block';
+    document.querySelectorAll('.solo-empresa').forEach(el => el.style.display = 'block');
+    document.getElementById('map').style.display = 'block';
+    const btnContacto = document.getElementById('btn-contacto');
+    if (btnContacto) btnContacto.style.display = 'none';
+    mostrarRepartidores();
   }
-  localStorage.setItem('archivosVisuales', JSON.stringify(archivos));
-  window.mostrarArchivosSubidos();
-  mostrarFeedback('Archivo eliminado.');
-};
+}
+window.addEventListener('DOMContentLoaded', forzarVistaPorUsuario);
+window.addEventListener('resize', forzarVistaPorUsuario);
 
-// --- PROCESAR LOGIN DE REPARTIDOR (asegura guardar usuarioActual y mostrar rutas) ---
+// --- MODAL RUTAS EMPRESA ---
+document.getElementById('abrir-modal-rutas').addEventListener('click', function() {
+  const modal = document.getElementById('modal-rutas-empresa');
+  const cont = document.getElementById('contenido-modal-rutas');
+  let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
+  if (!repartidores.length) {
+    cont.innerHTML = '<p style="text-align:center;color:#888;">No hay rutas creadas.</p>';
+  } else {
+    cont.innerHTML = repartidores.map((r, idx) => {
+      const total = r.lugares ? r.lugares.length : 0;
+      const realizadas = r.lugares ? r.lugares.filter(l => l.realizada).length : 0;
+      const pendientes = total - realizadas;
+      const incidencias = r.lugares ? r.lugares.filter(l => l.incidencia && l.incidencia.trim() !== '').length : 0;
+      const entregas = (Array.isArray(r.lugares) ? r.lugares.map((l, i) =>
+        `<li style='margin-bottom:4px;display:flex;align-items:center;gap:8px;'>
+          <input type='text' value='${l.direccion || ''}' id='dir-edit-modal-${idx}-${i}' style='width:180px;margin-right:4px;'>
+          <input type='time' value='${l.hora || ''}' id='hora-edit-modal-${idx}-${i}' style='width:90px;margin-right:4px;'>
+          <button onclick='window.guardarEdicionEntregaModal(${idx},${i})' title='Guardar cambios' style='background:#1a73e8;color:#fff;border:none;border-radius:4px;padding:2px 8px;'>💾</button>
+          <button onclick='window.eliminarEntregaEmpresaModal(${idx},${i})' title='Eliminar entrega' style='background:#e53935;color:#fff;border:none;border-radius:4px;padding:2px 8px;'>🗑️</button>
+          <button onclick="window.abrirNavegacionGoogleMaps && window.abrirNavegacionGoogleMaps('${(l.direccion || '').replace(/'/g, "\\'")}', '${l.hora}')" title="Navegar" style="background:#4caf50;color:#fff;border:none;border-radius:4px;padding:2px 8px;">🚗</button>
+        </li>`
+      ).join('') : '');
+      return `
+      <div style='border-bottom:1px solid #eee;padding:10px 0;'>
+        <strong>Usuario:</strong> ${r.usuario || ''}<br>
+        <strong>Nombre:</strong> ${r.nombre}<br>
+        <strong>Zona:</strong> ${r.zona}<br>
+        <strong>Fecha Ruta:</strong> ${r.fechaRuta || 'N/A'}<br>
+        <strong>Información adicional:</strong> ${r.infoAdicional || ''}<br>
+        <div style='margin:8px 0;'>
+          <span style="background:#e3f0ff;color:#155ab6;padding:3px 10px;border-radius:12px;font-size:0.98em;margin-right:8px;">Total: ${total}</span>
+          <span style="background:#d4edda;color:#256029;padding:3px 10px;border-radius:12px;font-size:0.98em;margin-right:8px;">✔ Realizadas: ${realizadas}</span>
+          <span style="background:#fff3cd;color:#856404;padding:3px 10px;border-radius:12px;font-size:0.98em;margin-right:8px;">⏳ Pendientes: ${pendientes}</span>
+          <span style="background:#f8d7da;color:#721c24;padding:3px 10px;border-radius:12px;font-size:0.98em;">Incidencia: ${incidencias}</span>
+        </div>
+        <div><strong>Entregas:</strong></div>
+        <ul style='margin:0;padding:0 0 0 10px;'>${entregas}</ul>
+      </div>`;
+    }).join('');
+  }
+  // Abrir modal
+  modal.style.display = 'block';
+  // Cerrar modal al hacer clic fuera del contenido
+  window.addEventListener('click', function cerrarModal(event) {
+    if (event.target === modal) {
+      modal.style.display = 'none';
+      window.removeEventListener('click', cerrarModal);
+    }
+  });
+});
+
+// Cerrar el modal al presionar ESC
+document.addEventListener('keydown', function(event) {
+  const modal = document.getElementById('modal-rutas-empresa');
+  if (modal.style.display === 'block' && event.key === 'Escape') {
+    modal.style.display = 'none';
+  }
+});
+
+// --- FIN ---
+
+// --- LOGIN REPARTIDOR ---
 document.addEventListener('DOMContentLoaded', function() {
   const formLogin = document.getElementById('form-login-repartidor');
   if (formLogin) {
@@ -1270,326 +1255,17 @@ document.addEventListener('DOMContentLoaded', function() {
       let usuarios = JSON.parse(localStorage.getItem('usuarios') || '[]');
       const user = usuarios.find(u => u.usuario.trim().toLowerCase() === usuarioInput && u.password === passwordInput);
       if (user && user.usuario !== 'empresa') {
-        usuarioActual = user;
         localStorage.setItem('usuarioActual', JSON.stringify(user));
-        // Limpiar la vista antes de mostrar rutas
+        document.getElementById('login-repartidor').style.display = 'none';
+        document.getElementById('repartidor-form').style.display = 'none';
         document.querySelectorAll('.solo-empresa').forEach(el => el.style.display = 'none');
-        const header = document.getElementById('header-principal');
-        if (header) header.style.display = 'none';
-        const tituloAdmin = document.getElementById('titulo-admin-panel');
-        if (tituloAdmin) tituloAdmin.style.display = 'none';
-        const footer = document.querySelector('footer');
-        if (footer) footer.style.display = 'none';
-        const lista = document.getElementById('lista-repartidores');
-        if (lista) lista.innerHTML = '';
-        const archivos = document.getElementById('archivos-subidos');
-        if (archivos) archivos.innerHTML = '';
-        const areaArchivos = document.getElementById('area-subida-archivos');
-        if (areaArchivos) areaArchivos.style.display = 'none';
-        const adminUsuarios = document.getElementById('admin-usuarios');
-        if (adminUsuarios) adminUsuarios.style.display = 'none';
-        // Forzar scroll al top
-        window.scrollTo({ top: 0, behavior: 'auto' });
-        // Mostrar solo lo de repartidor
-        mostrarMapaTrasLoginRepartidor();
-        setTimeout(() => { ajustarPanelesPorUsuario(); mostrarRepartidores(); }, 100);
-        mostrarFeedback('¡Bienvenido, ' + user.nombre + '!');
+        document.getElementById('map').style.display = 'block';
+        const btnContacto = document.getElementById('btn-contacto');
+        if (btnContacto) btnContacto.style.display = 'block';
+        mostrarRepartidores();
       } else {
         mostrarFeedback('Usuario o contraseña incorrectos.');
       }
     });
   }
-  ajustarPanelesPorUsuario();
-  // Generar opciones de destinatario en el selector solo si es empresa
-  if (usuarioActual && usuarioActual.usuario === 'empresa') {
-    const selectDest = document.getElementById('destinatarioArchivo');
-    if (selectDest) {
-      // Limpiar opciones actuales
-      selectDest.innerHTML = '<option value="todos">Todos los repartidores</option>';
-      let usuarios = JSON.parse(localStorage.getItem('usuarios') || '[]');
-      usuarios.filter(u => u.usuario !== 'empresa').forEach(u => {
-        const opt = document.createElement('option');
-        opt.value = u.usuario;
-        opt.textContent = u.nombre + ' (' + u.usuario + ')';
-        selectDest.appendChild(opt);
-      });
-    }
-
-    // NUEVO: Lógica para los filtros del mapa de empresa
-    const btnAplicarFiltros = document.getElementById('btn-aplicar-filtros-mapa');
-    const btnMostrarTodas = document.getElementById('btn-mostrar-todas-rutas-mapa');
-    const filtroFechaInput = document.getElementById('filtro-fecha-ruta');
-    const filtroUsuarioSelect = document.getElementById('filtro-usuario-ruta');
-
-    // Poblar select de usuarios para el filtro
-    let usuariosParaFiltro = JSON.parse(localStorage.getItem('usuarios') || '[]');
-    usuariosParaFiltro.filter(u => u.usuario !== 'empresa').forEach(u => {
-        const opt = document.createElement('option');
-        opt.value = u.usuario;
-        opt.textContent = u.nombre + ' (' + u.usuario + ')';
-        filtroUsuarioSelect.appendChild(opt);
-    });
-
-    if (btnAplicarFiltros) {
-        btnAplicarFiltros.addEventListener('click', () => {
-            const fechaFiltro = filtroFechaInput.value;
-            const usuarioFiltro = filtroUsuarioSelect.value;
-            let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
-            const filtrados = repartidores.filter(r => 
-                ( (!fechaFiltro || r.fechaRuta === fechaFiltro) && 
-                  (usuarioFiltro === 'todos' || r.usuario === usuarioFiltro) ));
-            actualizarVistaMapaEmpresa(filtrados);
-        });
-    }
-    if (btnMostrarTodas) {
-        btnMostrarTodas.addEventListener('click', () => actualizarVistaMapaEmpresa(JSON.parse(localStorage.getItem('repartidores') || '[]')));
-    }
-  }
-});
-
-// Quitar logo y título de admin solo en modo repartidor (móvil/tablet) al cargar la página
-function ocultarLogoYTituloRepartidor() {
-  var esMovil = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 900;
-  var header = document.getElementById('header-principal');
-  var indicador = document.getElementById('indicador-modo-dispositivo');
-  if (esMovil) {
-    var logo = document.querySelector('img[alt="Logo empresa"]');
-    if (logo) logo.style.display = 'none';
-    var titulo = document.getElementById('titulo-admin-panel');
-    if (titulo) titulo.style.display = 'none';
-    // Ajustar margen superior del header para que el botón de contacto no quede oculto
-    if (header && indicador) {
-      var altoIndicador = indicador.offsetHeight || 40;
-      header.style.marginTop = altoIndicador + 8 + 'px';
-    }
-  } else {
-    var logo = document.querySelector('img[alt="Logo empresa"]');
-    if (logo) logo.style.display = 'block';
-    var titulo = document.getElementById('titulo-admin-panel');
-    if (titulo) titulo.style.display = 'block';
-    if (header) header.style.marginTop = '';
-  }
-}
-
-document.addEventListener('DOMContentLoaded', ocultarLogoYTituloRepartidor);
-window.addEventListener('resize', ocultarLogoYTituloRepartidor);
-
-// --- SINCRONIZACIÓN AUTOMÁTICA ENTRE PESTAÑAS (EMPRESA/REPARTIDOR) ---
-window.addEventListener('storage', function(e) {
-  if (e.key === 'repartidores') {
-    mostrarRepartidores();
-    limpiarMarcadores();
-  }
-});
-
-// Asegúrate de que este script se ejecute después de que el DOM esté cargado
-// y después de que el div 'mapaRutas' exista.
-document.addEventListener('DOMContentLoaded', function () {
-
-  //   // 1. Inicializar el mapa
-  //   // Reemplaza LATITUD_INICIAL, LONGITUD_INICIAL y ZOOM_INICIAL con valores adecuados
-  //   // para centrar el mapa inicialmente (ej. tu ciudad/país)
-  //   const LATITUD_INICIAL = 40.416775; // Ejemplo: Madrid
-  //   const LONGITUD_INICIAL = -3.703790; // Ejemplo: Madrid
-  //   const ZOOM_INICIAL = 6;
-
-  // // Usar el ID 'map' del div HTML. Esta variable 'map' es local a este DOMContentLoaded.
-  //   // Esto solo se ejecutará si el script llega hasta aquí y el DOM está listo.
-  //   const map = L.map('map').setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-
-  //   // Añade una capa de teselas (el fondo del mapa)
-  //   // OpenStreetMap es una opción gratuita y popular.
-  //   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  //       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  //   }).addTo(map);
-
-  //   // Capa para gestionar las polilíneas de las rutas y marcadores
-  //   // Esto facilita limpiar las rutas anteriores antes de dibujar nuevas
-  //   let featuresLayer = L.layerGroup().addTo(map);
-
-  //  async function cargarYDibujarRutas(usuarioId, fecha) {
-  //   featuresLayer.clearLayers();
-
-  //   if (!usuarioId || !fecha) {
-  //       console.log("Por favor, selecciona un usuario y una fecha para mostrar las rutas.");
-  //       map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-  //       return;
-  //   }
-
-  //   try {
-  //       const apiUrl = `/api/empresa/rutas?usuarioId=${encodeURIComponent(usuarioId)}&fecha=${encodeURIComponent(fecha)}`;
-  //       const response = await fetch(apiUrl);
-
-  //       if (!response.ok) {
-  //           throw new Error(`Error al obtener las rutas: ${response.status} ${response.statusText}`);
-  //       }
-
-  //       const data = await response.json();
-
-  //       if (data.rutas && data.rutas.length > 0) {
-  //           const todasLasCoordenadasParaAjuste = [];
-
-  //           data.rutas.forEach(ruta => {
-  //               if (ruta.puntos && ruta.puntos.length > 1) {
-  //                   const latLngs = ruta.puntos.map(punto => [punto[0], punto[1]]);
-  //                   const polyline = L.polyline(latLngs, { color: 'blue', weight: 3 }).addTo(featuresLayer);
-
-  //                   if (latLngs.length > 0) {
-  //                       L.marker(latLngs[0])
-  //                           .addTo(featuresLayer)
-  //                           .bindPopup(`Inicio Ruta Repartidor: ${ruta.repartidorId || usuarioId}<br>Fecha: ${fecha}`);
-  //                       L.marker(latLngs[latLngs.length - 1])
-  //                           .addTo(featuresLayer)
-  //                           .bindPopup(`Fin Ruta Repartidor: ${ruta.repartidorId || usuarioId}<br>Fecha: ${fecha}`);
-  //                   }
-
-  //                   latLngs.forEach(coord => todasLasCoordenadasParaAjuste.push(coord));
-  //               }
-  //           });
-
-  //           if (todasLasCoordenadasParaAjuste.length > 0) {
-  //               map.fitBounds(todasLasCoordenadasParaAjuste, { padding: [50, 50] });
-  //           } else {
-  //               map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-  //           }
-
-  //       } else {
-  //           console.log("No se encontraron rutas para los filtros seleccionados.");
-  //           map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-  //       }
-
- // Esta lógica es específica para la vista de EMPRESA y su mapa.
-    const esModoEmpresa = (usuarioActual && usuarioActual.usuario === 'empresa');
-
-    if (esModoEmpresa) {
-        const LATITUD_INICIAL = 40.416775; // Ejemplo: Madrid
-        const LONGITUD_INICIAL = -3.703790; // Ejemplo: Madrid
-        const ZOOM_INICIAL = 6;
-
-        // Inicializa el mapa global `map` si aún no lo está.
-        // En modo empresa, initMap() no se llama, por lo que `map` estaría indefinido.
-        if (!map) { 
-            map = L.map('map').setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
-        } else {
-            // Si el mapa ya existe (poco probable en modo empresa si initMap está condicionado),
-            // simplemente ajusta la vista.
-            map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-        }
-
-
-//     } catch (error) {
-//         console.error("Error al cargar o dibujar las rutas:", error);
-//         alert(`Hubo un error al cargar las rutas: ${error.message}`);
-//         map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-//     }
-// }
-// Inicializa o limpia la capa de features global para la empresa.
-        if (featuresLayerEmpresa) {
-            featuresLayerEmpresa.clearLayers();
-        } else {
-            featuresLayerEmpresa = L.layerGroup().addTo(map);
-        }
-
-        async function cargarYDibujarRutas(usuarioId, fecha) {
-            if (!featuresLayerEmpresa) {
-                console.error("featuresLayerEmpresa no está inicializada.");
-                return;
-            }
-            featuresLayerEmpresa.clearLayers();
-
-            if (!usuarioId || !fecha) {
-                console.log("Por favor, selecciona un usuario y una fecha para mostrar las rutas.");
-                if (map) map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-                return;
-            }
-
-            try {
-                const apiUrl = `/api/empresa/rutas?usuarioId=${encodeURIComponent(usuarioId)}&fecha=${encodeURIComponent(fecha)}`;
-                const response = await fetch(apiUrl);
-
-                if (!response.ok) {
-                    // No lanzar error aquí permite que el código continúe y muestre el mensaje de alerta.
-                    // El error ya se loguea en la consola.
-                    console.error(`Error al obtener las rutas desde API: ${response.status} ${response.statusText}`);
-                    alert(`No se pudo conectar con el servidor para obtener las rutas (Error: ${response.status}). Verifica que el backend esté funcionando.`);
-                    if (map) map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-                    return; // Importante: salir aquí si la API falla y no hay fallback.
-                }
-
-                const data = await response.json();
-
-                if (data.rutas && data.rutas.length > 0) {
-                    const todasLasCoordenadasParaAjuste = [];
-
-                    data.rutas.forEach(ruta => {
-                        if (ruta.puntos && ruta.puntos.length > 1) {
-                            const latLngs = ruta.puntos.map(punto => [punto[0], punto[1]]);
-                            const polyline = L.polyline(latLngs, { color: 'blue', weight: 3 }).addTo(featuresLayerEmpresa);
-
-                            if (latLngs.length > 0) {
-                                L.marker(latLngs[0])
-                                    .addTo(featuresLayerEmpresa)
-                                    .bindPopup(`Inicio Ruta Repartidor: ${ruta.repartidorId || usuarioId}<br>Fecha: ${fecha}`);
-                                L.marker(latLngs[latLngs.length - 1])
-                                    .addTo(featuresLayerEmpresa)
-                                    .bindPopup(`Fin Ruta Repartidor: ${ruta.repartidorId || usuarioId}<br>Fecha: ${fecha}`);
-                            }
-                            latLngs.forEach(coord => todasLasCoordenadasParaAjuste.push(coord));
-                        }
-                    });
-
-                    if (todasLasCoordenadasParaAjuste.length > 0) {
-                        if (map) map.fitBounds(todasLasCoordenadasParaAjuste, { padding: [50, 50] });
-                    } else {
-                        if (map) map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-                    }
-                } else {
-                    console.log("No se encontraron rutas para los filtros seleccionados desde la API.");
-                    if (map) map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-                }
-            } catch (error) { // Captura errores de red o de parseo de JSON
-                console.error("Error al cargar o dibujar las rutas (catch):", error);
-                alert(`Hubo un error al procesar la solicitud de rutas: ${error.message}. Revisa la consola para más detalles.`);
-                if (map) map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-            }
-        }
-    // 3. Escuchar cambios en los filtros
-    // Asegúrate de que los IDs 'filtroUsuario' y 'filtroFecha' coincidan con tu HTML
-   const filtroUsuarioEl = document.getElementById('filtro-usuario-ruta'); // ID CORREGIDO
-    const filtroFechaEl = document.getElementById('filtro-fecha-ruta');     // ID CORREGIDO
-
-    function actualizarMapaConFiltros() {
-        const usuarioSeleccionado = filtroUsuarioEl ? filtroUsuarioEl.value : null;
-        const fechaSeleccionada = filtroFechaEl ? filtroFechaEl.value : null;
-        
-        // Solo cargar si ambos filtros tienen valor
-        if (usuarioSeleccionado && fechaSeleccionada) {
-            cargarYDibujarRutas(usuarioSeleccionado, fechaSeleccionada);
-        } else {
-            // Si falta algún filtro, limpiar el mapa y quizás mostrar un mensaje
-           if (featuresLayerEmpresa) {
-                featuresLayerEmpresa.clearLayers();
-            }
-            if (map) map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-            console.log("Selecciona un usuario y una fecha.");
-        }
-    }
-
-    if (filtroUsuarioEl) {
-        filtroUsuarioEl.addEventListener('change', actualizarMapaConFiltros);
-    }
-    if (filtroFechaEl) {
-        filtroFechaEl.addEventListener('change', actualizarMapaConFiltros);
-    }
-
-    // Opcional: Carga inicial si los filtros ya tienen valores al cargar la página
-    // Por ejemplo, si los filtros guardan su estado o tienen valores por defecto:
-    // actualizarMapaConFiltros();
-    // O simplemente muestra el mapa base sin rutas:
-    // map.setView([LATITUD_INICIAL, LONGITUD_INICIAL], ZOOM_INICIAL);
-    // Para este ejemplo, no se cargarán rutas hasta que se interactúe con los filtros.
-   } // Cierre de if (esModoEmpresa)
 });
