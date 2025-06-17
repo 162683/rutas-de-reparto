@@ -425,7 +425,6 @@ document.getElementById('repartidor-form').addEventListener('submit', function(e
   document.getElementById('fecha-ruta').value = ''; // Limpiar campo de fecha
   document.getElementById('repartidor-form').style.display = 'block';
 });
-// ...existing code...
 
 
 function mostrarRepartidores() {
@@ -474,14 +473,14 @@ function mostrarRepartidores() {
         <ul style="margin:0;padding:0;list-style:none;">
           ${(Array.isArray(r.lugares) ? r.lugares : []).map((l, i) =>
             l.realizada
-              ? `<li style='margin-bottom:8px;display:flex;align-items:center;gap:10px;background:#e8f5e9;padding:7px 10px;border-radius:6px;'><span style='color:#43a047;font-weight:bold;font-size:1.1em;'>✔ Realizada</span> <span style='color:#333;'>${l.direccion} - ${l.hora}${l.incidencia ? ' <span style="color:#e53935;">Incidencia: ' + l.incidencia + '</span>' : ''}</span></li>`
+              ? `<li style='margin-bottom:8px;display:flex;align-items:center;gap:10px;background:#e8f5e9;padding:7px 10px;border-radius:6px;'><span style='color:#43a047;font-weight:bold;font-size:1.1em;'>✔ Realizada</span> <span style='color:#333;'>${l.direccion} - ${l.hora}${l.incidencia ? ' <span style="color:#e53935;">Incidencia</span>' : ''}</span></li>`
               : `<li style='margin-bottom:8px;display:flex;align-items:center;gap:10px;background:#f8fbff;padding:7px 10px;border-radius:6px;'>
                 <button style="padding:2px 10px;border-radius:4px;background:#2196f3;color:#fff;border:none;font-size:0.97em;" onclick="mostrarRuta(${r._idx},${i});return false;">Ver ruta en la web</button>
                 <button style="padding:2px 10px;border-radius:4px;background:#4caf50;color:#fff;border:none;font-size:0.97em;" onclick=\"abrirNavegacionGoogleMaps('${(l.direccion || '').replace(/'/g, "\\'")}')\">Google Maps</button>
                 <button style=\"padding:2px 10px;border-radius:4px;background:#43a047;color:#fff;border:none;font-size:0.97em;\" onclick=\"eliminarEntrega(${r._idx},${i});return false;\">Marcar como realizada</button>
-                <input type='text' value='${l.incidencia ? l.incidencia.replace(/"/g, '&quot;') : ''}' placeholder='Incidencia' style='width:120px;margin-right:4px;' onchange='actualizarIncidenciaRepartidor(${r._idx},${i}, this.value)'>
+                <button style='padding:2px 10px;border-radius:4px;background:#e53935;color:#fff;border:none;font-size:0.97em;' onclick='marcarIncidenciaRepartidor(${r._idx},${i}, this)'>${l.incidencia ? 'Incidencia marcada' : 'Marcar incidencia'}</button>
                 <input type='file' class='input-archivo-ruta-repartidor' data-repartidor-idx='${r._idx}' data-lugar-idx='${i}' style='font-size:0.9em;'>
-                <span style='color:#333;'>${l.direccion} - ${l.hora}${l.incidencia ? ' <span style="color:#e53935;">Incidencia: ' + l.incidencia + '</span>' : ''}</span>
+                <span style='color:#333;'>${l.direccion} - ${l.hora}${l.incidencia ? ' <span style="color:#e53935;">Incidencia</span>' : ''}</span>
               </li>`
           ).join('')}
         </ul>
@@ -1197,12 +1196,21 @@ document.getElementById('abrir-modal-rutas').addEventListener('click', function(
       const pendientes = total - realizadas;
       const incidencias = r.lugares ? r.lugares.filter(l => l.incidencia && l.incidencia.trim() !== '').length : 0;
       const entregas = (Array.isArray(r.lugares) ? r.lugares.map((l, i) =>
-        `<li style='margin-bottom:4px;display:flex;align-items:center;gap:8px;'>
+        `<li style='margin-bottom:12px;display:flex;align-items:center;gap:8px;'>
           <input type='text' value='${l.direccion || ''}' id='dir-edit-modal-${idx}-${i}' style='width:180px;margin-right:4px;'>
           <input type='time' value='${l.hora || ''}' id='hora-edit-modal-${idx}-${i}' style='width:90px;margin-right:4px;'>
           <button onclick='window.guardarEdicionEntregaModal(${idx},${i})' title='Guardar cambios' style='background:#1a73e8;color:#fff;border:none;border-radius:4px;padding:2px 8px;'>💾</button>
           <button onclick='window.eliminarEntregaEmpresaModal(${idx},${i})' title='Eliminar entrega' style='background:#e53935;color:#fff;border:none;border-radius:4px;padding:2px 8px;'>🗑️</button>
           <button onclick="window.abrirNavegacionGoogleMaps && window.abrirNavegacionGoogleMaps('${(l.direccion || '').replace(/'/g, "\\'")}', '${l.hora}')" title="Navegar" style="background:#4caf50;color:#fff;border:none;border-radius:4px;padding:2px 8px;">🚗</button>
+          <input type='file' class='input-archivo-modal' data-repartidor-idx='${idx}' data-lugar-idx='${i}' style='font-size:0.9em;'>
+          <div class='archivos-modal-lista' style='display:flex;flex-direction:column;gap:3px;'>
+            ${(l.archivos||[]).map((archivo, archivoIdx) =>
+              `<div style="display:flex;align-items:center;gap:6px;">
+                <a href="${archivo.datosArchivo}" download="${archivo.nombreArchivo}" style="color:#0056b3;">${archivo.nombreArchivo}</a>
+                <button onclick="window.eliminarArchivoModal(${idx},${i},${archivoIdx})" style="background:transparent;border:none;color:red;cursor:pointer;font-size:1.1em;">🗑️</button>
+              </div>`
+            ).join('')}
+          </div>
         </li>`
       ).join('') : '');
       return `
@@ -1256,16 +1264,135 @@ document.addEventListener('DOMContentLoaded', function() {
       const user = usuarios.find(u => u.usuario.trim().toLowerCase() === usuarioInput && u.password === passwordInput);
       if (user && user.usuario !== 'empresa') {
         localStorage.setItem('usuarioActual', JSON.stringify(user));
-        document.getElementById('login-repartidor').style.display = 'none';
-        document.getElementById('repartidor-form').style.display = 'none';
-        document.querySelectorAll('.solo-empresa').forEach(el => el.style.display = 'none');
-        document.getElementById('map').style.display = 'block';
-        const btnContacto = document.getElementById('btn-contacto');
-        if (btnContacto) btnContacto.style.display = 'block';
-        mostrarRepartidores();
+        location.reload(); // Forzar recarga para que la vista cambie correctamente
       } else {
         mostrarFeedback('Usuario o contraseña incorrectos.');
       }
     });
   }
 });
+
+// --- FUNCION GLOBAL PARA ABRIR GOOGLE MAPS ---
+window.abrirNavegacionGoogleMaps = function(direccion, hora) {
+  const url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(direccion + (hora ? ' ' + hora : ''));
+  window.open(url, '_blank');
+};
+
+// --- MARCAR INCIDENCIA DESDE REPARTIDOR ---
+window.marcarIncidenciaRepartidor = function(repartidorIdx, lugarIdx, btn) {
+  let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
+  if (repartidores[repartidorIdx] && repartidores[repartidorIdx].lugares[lugarIdx]) {
+    repartidores[repartidorIdx].lugares[lugarIdx].incidencia = 'Incidencia';
+    localStorage.setItem('repartidores', JSON.stringify(repartidores));
+    mostrarRepartidores();
+    mostrarFeedback('Incidencia marcada y sincronizada con la empresa.');
+  }
+};
+
+// --- FUNCIONES DE EDICIÓN Y ARCHIVOS EN MODAL ---
+window.guardarEdicionEntregaModal = function(repartidorIdx, lugarIdx) {
+  let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
+  const dirInput = document.getElementById('dir-edit-modal-' + repartidorIdx + '-' + lugarIdx);
+  const horaInput = document.getElementById('hora-edit-modal-' + repartidorIdx + '-' + lugarIdx);
+  if (repartidores[repartidorIdx] && repartidores[repartidorIdx].lugares[lugarIdx]) {
+    repartidores[repartidorIdx].lugares[lugarIdx].direccion = dirInput.value;
+    repartidores[repartidorIdx].lugares[lugarIdx].hora = horaInput.value;
+    localStorage.setItem('repartidores', JSON.stringify(repartidores));
+    mostrarFeedback('Entrega actualizada correctamente.');
+    document.getElementById('abrir-modal-rutas').click(); // Refrescar modal
+  }
+};
+window.eliminarEntregaEmpresaModal = function(repartidorIdx, lugarIdx) {
+  if (!confirm('¿Seguro que quieres eliminar esta entrega?')) return;
+  let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
+  if (repartidores[repartidorIdx] && repartidores[repartidorIdx].lugares[lugarIdx]) {
+    repartidores[repartidorIdx].lugares.splice(lugarIdx, 1);
+    localStorage.setItem('repartidores', JSON.stringify(repartidores));
+    mostrarFeedback('Entrega eliminada.');
+    document.getElementById('abrir-modal-rutas').click(); // Refrescar modal
+  }
+};
+window.eliminarArchivoModal = function(repartidorIdx, lugarIdx, archivoIdx) {
+  let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
+  if (repartidores[repartidorIdx] && repartidores[repartidorIdx].lugares[lugarIdx] && repartidores[repartidorIdx].lugares[lugarIdx].archivos) {
+    repartidores[repartidorIdx].lugares[lugarIdx].archivos.splice(archivoIdx, 1);
+    localStorage.setItem('repartidores', JSON.stringify(repartidores));
+    mostrarFeedback('Archivo eliminado.');
+    document.getElementById('abrir-modal-rutas').click();
+  }
+};
+setTimeout(() => {
+  document.querySelectorAll('.input-archivo-modal').forEach(input => {
+    input.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      const repartidorIdx = parseInt(e.target.dataset.repartidorIdx, 10);
+      const lugarIdx = parseInt(e.target.dataset.lugarIdx, 10);
+      if (!file || isNaN(repartidorIdx) || isNaN(lugarIdx)) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
+        if (repartidores[repartidorIdx] && repartidores[repartidorIdx].lugares[lugarIdx]) {
+          if (!repartidores[repartidorIdx].lugares[lugarIdx].archivos) {
+            repartidores[repartidorIdx].lugares[lugarIdx].archivos = [];
+          }
+          repartidores[repartidorIdx].lugares[lugarIdx].archivos.push({
+            nombreArchivo: file.name,
+            tipoArchivo: file.type || file.name.split('.').pop(),
+            datosArchivo: event.target.result
+          });
+          localStorage.setItem('repartidores', JSON.stringify(repartidores));
+          mostrarFeedback('Archivo subido y asociado a la entrega.');
+          document.getElementById('abrir-modal-rutas').click();
+        }
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    });
+  });
+}, 500);
+
+// Unificar subida de archivos por ruta para repartidor y empresa
+function adjuntarEventListenersArchivosRutaUnificado() {
+  document.querySelectorAll('.input-archivo-ruta, .input-archivo-ruta-repartidor, .input-archivo-modal').forEach(input => {
+    input.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      const repartidorIdx = parseInt(e.target.dataset.repartidorIdx, 10);
+      const lugarIdx = parseInt(e.target.dataset.lugarIdx, 10);
+      if (!file || isNaN(repartidorIdx)) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
+        // Si es por lugar específico
+        if (!isNaN(lugarIdx) && repartidores[repartidorIdx] && repartidores[repartidorIdx].lugares[lugarIdx]) {
+          if (!repartidores[repartidorIdx].lugares[lugarIdx].archivos) {
+            repartidores[repartidorIdx].lugares[lugarIdx].archivos = [];
+          }
+          repartidores[repartidorIdx].lugares[lugarIdx].archivos.push({
+            nombreArchivo: file.name,
+            tipoArchivo: file.type || file.name.split('.').pop(),
+            datosArchivo: event.target.result
+          });
+        } else if (repartidores[repartidorIdx]) {
+          // Si es por ruta general (empresa)
+          if (!repartidores[repartidorIdx].archivosEspecificos) {
+            repartidores[repartidorIdx].archivosEspecificos = [];
+          }
+          repartidores[repartidorIdx].archivosEspecificos.push({
+            nombreArchivo: file.name,
+            tipoArchivo: file.type || file.name.split('.').pop(),
+            datosArchivo: event.target.result
+          });
+        }
+        localStorage.setItem('repartidores', JSON.stringify(repartidores));
+        mostrarFeedback('Archivo subido y sincronizado.');
+        mostrarRepartidores();
+        if (document.getElementById('modal-rutas-empresa').style.display === 'flex') {
+          document.getElementById('abrir-modal-rutas').click();
+        }
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    });
+  });
+}
+setTimeout(adjuntarEventListenersArchivosRutaUnificado, 600);
