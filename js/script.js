@@ -68,6 +68,10 @@ function initMap() {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
+  // Inicializar capa de empresa si no existe
+  if (!featuresLayerEmpresa) {
+    featuresLayerEmpresa = L.layerGroup().addTo(map);
+  }
 }
 
 function limpiarMarcadores() {
@@ -85,8 +89,18 @@ function mostrarMarcadoresRepartidor(repartidor, colorIdx) {
   repartidor.lugares.forEach(lugar => {
     geocodeDireccionLeaflet(lugar.direccion, (latlng) => {
       if (latlng) {
+        // Usar icono de color personalizado para el marcador
+        const iconoColor = L.icon({
+          iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${colorPorUsuario[repartidor.usuario] || 'blue'}.png`,
+          iconSize: [25, 41],
+          iconAnchor: [12, 41],
+          popupAnchor: [1, -34],
+          shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+          shadowSize: [41, 41]
+        });
         const marker = L.marker(latlng, {
-          title: `${lugar.direccion} - ${lugar.hora}`
+          title: `${lugar.direccion} - ${lugar.hora}`,
+          icon: iconoColor
         }).addTo(map);
         marker.bindPopup(`<b>${lugar.direccion}</b><br>Hora: ${lugar.hora}${lugar.incidencia ? '<br><span style=\'color:#e53935;\'>Incidencia: ' + lugar.incidencia + '</span>' : ''}`);
         marcadores.push(marker);
@@ -374,6 +388,7 @@ document.getElementById('repartidor-form').addEventListener('submit', function(e
   // Leer usuario, nombre, zona e información adicional del formulario
   let usuario = document.getElementById('usuario').value;
   let nombre = document.getElementById('nombre').value;
+  let apellidos = document.getElementById('apellido').value; // NUEVO
   let zona = document.getElementById('zona').value;
   let infoAdicional = document.getElementById('info-adicional').value; // <-- NUEVO
   let fechaRuta = document.getElementById('fecha-ruta').value; // NUEVO: Campo de fecha
@@ -381,24 +396,25 @@ document.getElementById('repartidor-form').addEventListener('submit', function(e
   const horas = Array.from(document.getElementsByName('hora[]')).map(input => input.value);
   const incidencias = Array.from(document.getElementsByName('incidencia[]')).map(input => input.value);
   const lugares = direcciones.map((direccion, i) => ({ direccion, hora: horas[i], incidencia: incidencias[i] }));
-  if (!usuario || !nombre || !zona || !fechaRuta || lugares.length === 0 || lugares.some(l => !l.direccion || !l.hora)) { // NUEVO: Validar fechaRuta
+  if (!usuario || !nombre || !apellidos || !zona || !fechaRuta || lugares.length === 0 || lugares.some(l => !l.direccion || !l.hora)) { // NUEVO: Validar apellidos
     mostrarFeedback('Por favor, completa todos los campos antes de guardar.');
     return;
   }
   let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
-  // Buscar si ya existe un repartidor con ese usuario, nombre y zona
-  const idx = repartidores.findIndex(r => r.usuario === usuario && r.nombre === nombre && r.zona === zona);
+  // Buscar si ya existe un repartidor con ese usuario, nombre, apellidos y zona
+  const idx = repartidores.findIndex(r => r.usuario === usuario && r.nombre === nombre && r.apellidos === apellidos && r.zona === zona);
   if (idx !== -1) {
     repartidores[idx].lugares = lugares;
     repartidores[idx].usuario = usuario;
     repartidores[idx].nombre = nombre;
+    repartidores[idx].apellidos = apellidos; // NUEVO
     repartidores[idx].zona = zona;
     repartidores[idx].infoAdicional = infoAdicional; // <-- NUEVO
     repartidores[idx].fechaRuta = fechaRuta; // NUEVO
     repartidores[idx].archivosEspecificos = repartidores[idx].archivosEspecificos || []; // Asegurar que exista
     mostrarFeedback('Datos del repartidor actualizados correctamente.');
   } else {
-    repartidores.push({ usuario, nombre, zona, lugares, infoAdicional, fechaRuta, archivosEspecificos: [] }); // <-- NUEVO
+    repartidores.push({ usuario, nombre, apellidos, zona, lugares, infoAdicional, fechaRuta, archivosEspecificos: [] }); // <-- NUEVO
     mostrarFeedback('Repartidor añadido correctamente.');
   }
   localStorage.setItem('repartidores', JSON.stringify(repartidores));
@@ -462,30 +478,40 @@ function mostrarRepartidores() {
       lista.innerHTML = '<p>No tienes rutas asignadas.</p>';
       return;
     }
-    lista.innerHTML = misRepartos.map((r, idx) =>
-      `<div class="repartidor-card">
+    lista.innerHTML = misRepartos.map((r, idx) => {
+      let html = `<div class="repartidor-card">
         <strong>Usuario:</strong> ${r.usuario || ''}<br>
-        <strong>Nombre:</strong> ${r.nombre}<br>
+        <strong>Nombre:</strong> ${r.nombre} ${r.apellidos || ''}<br>
         <strong>Zona:</strong> ${r.zona}<br>
         <strong>Fecha Ruta:</strong> ${r.fechaRuta || 'N/A'}<br>
         <strong>Información adicional:</strong> ${r.infoAdicional || ''}<br>
-        <strong>Entrega:</strong>
-        <ul style="margin:0;padding:0;list-style:none;">
-          ${(Array.isArray(r.lugares) ? r.lugares : []).map((l, i) =>
-            l.realizada
-              ? `<li style='margin-bottom:8px;display:flex;align-items:center;gap:10px;background:#e8f5e9;padding:7px 10px;border-radius:6px;'><span style='color:#43a047;font-weight:bold;font-size:1.1em;'>✔ Realizada</span> <span style='color:#333;'>${l.direccion} - ${l.hora}${l.incidencia ? ' <span style="color:#e53935;">Incidencia</span>' : ''}</span></li>`
-              : `<li style='margin-bottom:8px;display:flex;align-items:center;gap:10px;background:#f8fbff;padding:7px 10px;border-radius:6px;'>
-                <button style="padding:2px 10px;border-radius:4px;background:#2196f3;color:#fff;border:none;font-size:0.97em;" onclick="mostrarRuta(${r._idx},${i});return false;">Ver ruta en la web</button>
-                <button style="padding:2px 10px;border-radius:4px;background:#4caf50;color:#fff;border:none;font-size:0.97em;" onclick=\"abrirNavegacionGoogleMaps('${(l.direccion || '').replace(/'/g, "\\'")}')\">Google Maps</button>
-                <button style=\"padding:2px 10px;border-radius:4px;background:#43a047;color:#fff;border:none;font-size:0.97em;\" onclick=\"eliminarEntrega(${r._idx},${i});return false;\">Marcar como realizada</button>
-                <button style='padding:2px 10px;border-radius:4px;background:#e53935;color:#fff;border:none;font-size:0.97em;' onclick='marcarIncidenciaRepartidor(${r._idx},${i}, this)'>${l.incidencia ? 'Incidencia marcada' : 'Marcar incidencia'}</button>
-                <input type='file' class='input-archivo-ruta-repartidor' data-repartidor-idx='${r._idx}' data-lugar-idx='${i}' style='font-size:0.9em;'>
-                <span style='color:#333;'>${l.direccion} - ${l.hora}${l.incidencia ? ' <span style="color:#e53935;">Incidencia</span>' : ''}</span>
-              </li>`
-          ).join('')}
-        </ul>
-      </div>`
-    ).join('');
+        <strong>Entrega:</strong>`;
+      if (Array.isArray(r.lugares) && r.lugares.length > 0) {
+        html += '<ul style="margin:0;padding:0;list-style:none;">' +
+          r.lugares.map((l, i) =>
+            `<li style='margin-bottom:8px;display:flex;align-items:center;gap:10px;background:#f8fbff;padding:7px 10px;border-radius:6px;'>
+              <span style='color:#333;'>${l.direccion || ''} - ${l.hora || ''}${l.incidencia ? ' <span style=\"color:#e53935;\">Incidencia</span>' : ''}</span>
+              <button style="padding:2px 10px;border-radius:4px;background:#2196f3;color:#fff;border:none;font-size:0.97em;" onclick="mostrarRuta(${r._idx},${i});return false;">Ver ruta en la web</button>
+              <button style="padding:2px 10px;border-radius:4px;background:#4caf50;color:#fff;border:none;font-size:0.97em;" onclick=\"abrirNavegacionGoogleMaps('${(l.direccion || '').replace(/'/g, "\\'")}')\">Google Maps</button>
+              <button style=\"padding:2px 10px;border-radius:4px;background:#43a047;color:#fff;border:none;font-size:0.97em;\" onclick=\"eliminarEntrega(${r._idx},${i});return false;\">Marcar como realizada</button>
+              <button style='padding:2px 10px;border-radius:4px;background:#e53935;color:#fff;border:none;font-size:0.97em;' onclick='marcarIncidenciaRepartidor(${r._idx},${i}, this)'>${l.incidencia ? 'Incidencia marcada' : 'Marcar incidencia'}</button>
+              <input type='file' class='input-archivo-modal' data-repartidor-idx='${r._idx}' data-lugar-idx='${i}' style='font-size:0.9em;'>
+              <div class='archivos-modal-lista' style='display:flex;flex-direction:column;gap:3px;'>
+                ${(l.archivos||[]).map((archivo, archivoIdx) =>
+                  `<div style=\"display:flex;align-items:center;gap:6px;\">
+                    <a href=\"${archivo.datosArchivo}\" download=\"${archivo.nombreArchivo}\" style=\"color:#0056b3;\">${archivo.nombreArchivo}</a>
+                    <button onclick=\"window.eliminarArchivoModal(${r._idx},${i},${archivoIdx})\" style=\"background:transparent;border:none;color:red;cursor:pointer;font-size:1.1em;\">🗑️</button>
+                  </div>`
+                ).join('')}
+              </div>
+            </li>`
+          ).join('') + '</ul>';
+      } else {
+        html += '<div style="color:#888;">No hay entregas asignadas.</div>';
+      }
+      html += '</div>';
+      return html;
+    }).join('');
     // Mostrar marcadores de este repartidor
     if (misRepartos.length > 0) {
       mostrarMarcadoresRepartidor(misRepartos[0], 0);
@@ -561,7 +587,13 @@ function actualizarVistaMapaEmpresa(repartidoresFiltrados) {
         return;
     }
 
-    const colores = ['blue', 'red', 'green', 'purple', 'orange', 'darkred', 'cadetblue', 'darkgreen'];
+    const colores = ['blue', 'red', 'green', 'purple', 'orange', 'darkred', 'cadetblue', 'darkgreen', 'magenta', 'teal', 'brown', 'gold'];
+    // Asignar color único por repartidor
+    let colorPorUsuario = {};
+    let usuariosUnicos = Array.from(new Set(repartidoresFiltrados.map(r => r.usuario)));
+    usuariosUnicos.forEach((usuario, idx) => {
+      colorPorUsuario[usuario] = colores[idx % colores.length];
+    });
     let colorIdx = 0;
     const todosLosPuntos = [];
 
@@ -575,21 +607,28 @@ function actualizarVistaMapaEmpresa(repartidoresFiltrados) {
                     todosLosPuntos.push(latlng);
                     puntosRutaActual.push(latlng);
 
+                    // Usar icono de color personalizado para el marcador
+                    const iconoColor = L.icon({
+                        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${colorPorUsuario[repartidor.usuario] || 'blue'}.png`,
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+                        shadowSize: [41, 41]
+                    });
                     const marker = L.marker(latlng, {
-                        title: `${repartidor.nombre}: ${lugar.direccion} - ${lugar.hora}`
+                        title: `${repartidor.nombre} ${repartidor.apellidos || ''}: ${lugar.direccion} - ${lugar.hora}`,
+                        icon: iconoColor
                     }).addTo(map);
-                    marker.bindPopup(`<b>${repartidor.nombre}</b><br>${lugar.direccion}<br>Hora: ${lugar.hora}<br>Fecha: ${repartidor.fechaRuta}${lugar.incidencia ? '<br><span style=\'color:#e53935;\'>Incidencia: ' + lugar.incidencia + '</span>' : ''}`).addTo(featuresLayerEmpresa);
-                    // No agregar a `marcadores` globales si es para la capa de empresa
+                    marker.bindPopup(`<b style='color:${colorPorUsuario[repartidor.usuario]};'>${repartidor.nombre} ${repartidor.apellidos || ''}</b><br>${lugar.direccion}<br>Hora: ${lugar.hora}<br>Fecha: ${repartidor.fechaRuta}${lugar.incidencia ? '<br><span style=\'color:#e53935;\'>Incidencia: ' + lugar.incidencia + '</span>' : ''}`).addTo(featuresLayerEmpresa);
 
                     // Si hay más de un punto para este repartidor, dibujar polilínea
                     if (puntosRutaActual.length > 1) {
-                        // Para simplificar, conectamos secuencialmente. OSRM sería para rutas optimizadas.
-                        const polyline = L.polyline(puntosRutaActual.slice(-2), { // Conecta los dos últimos puntos
-                            color: colores[colorIdx % colores.length],
+                        const polyline = L.polyline(puntosRutaActual.slice(-2), {
+                            color: colorPorUsuario[repartidor.usuario],
                             weight: 3,
                             opacity: 0.7
                          }).addTo(featuresLayerEmpresa);
-                        // No agregar a `leafletRutas` globales si es para la capa de empresa
                     }
                 }
             });
@@ -811,11 +850,35 @@ window.editarUsuario = function(idx) {
 window.eliminarUsuario = function(idx) {
   if (!confirm('¿Seguro que quieres eliminar este usuario?')) return;
   let usuarios = JSON.parse(localStorage.getItem('usuarios') || '[]');
-  usuarios.splice(idx, 1);
-  localStorage.setItem('usuarios', JSON.stringify(usuarios));
-  window._editUsuarioIdx = null;
+  if (usuarios[idx] && usuarios[idx].usuario !== 'empresa') {
+    usuarios.splice(idx, 1);
+    localStorage.setItem('usuarios', JSON.stringify(usuarios));
+  }
   renderPanelUsuarios();
 };
+
+// --- INICIALIZAR usuarioActual DESDE localStorage ANTES DE DOMContentLoaded ---
+if (!window.usuarioActual) {
+  try {
+    const userLS = JSON.parse(localStorage.getItem('usuarioActual'));
+    if (userLS && userLS.usuario) {
+      window.usuarioActual = userLS;
+    }
+  } catch(e) {
+    window.usuarioActual = null;
+  }
+}
+
+// Asegurar que usuarioActual esté inicializado correctamente al cargar la página
+if (!window.usuarioActual) {
+  try {
+    const userLS = JSON.parse(localStorage.getItem('usuarioActual'));
+    if (userLS && userLS.usuario) {
+      window.usuarioActual = userLS;
+    }
+  } catch(e) {}
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   renderPanelUsuarios();
 });
@@ -827,6 +890,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (usuarioActual && usuarioActual.usuario !== 'empresa') {
     initMap();
   } else if (usuarioActual && usuarioActual.usuario === 'empresa') {
+    initMap(); // <-- Inicializar el mapa también para la empresa
     const mapaDiv = document.getElementById('map');
     if (mapaDiv) mapaDiv.style.display = 'block'; // Asegurar visibilidad para el mapa de empresa
   }
@@ -1200,26 +1264,36 @@ document.getElementById('abrir-modal-rutas').addEventListener('click', function(
           <input type='text' value='${l.direccion || ''}' id='dir-edit-modal-${idx}-${i}' style='width:180px;margin-right:4px;'>
           <input type='time' value='${l.hora || ''}' id='hora-edit-modal-${idx}-${i}' style='width:90px;margin-right:4px;'>
           <button onclick='window.guardarEdicionEntregaModal(${idx},${i})' title='Guardar cambios' style='background:#1a73e8;color:#fff;border:none;border-radius:4px;padding:2px 8px;'>💾</button>
-          <button onclick='window.eliminarEntregaEmpresaModal(${idx},${i})' title='Eliminar entrega' style='background:#e53935;color:#fff;border:none;border-radius:4px;padding:2px 8px;'>🗑️</button>
           <button onclick="window.abrirNavegacionGoogleMaps && window.abrirNavegacionGoogleMaps('${(l.direccion || '').replace(/'/g, "\\'")}', '${l.hora}')" title="Navegar" style="background:#4caf50;color:#fff;border:none;border-radius:4px;padding:2px 8px;">🚗</button>
-          <input type='file' class='input-archivo-modal' data-repartidor-idx='${idx}' data-lugar-idx='${i}' style='font-size:0.9em;'>
-          <div class='archivos-modal-lista' style='display:flex;flex-direction:column;gap:3px;'>
+          <button onclick="window.eliminarRutaCompletaEmpresaModal(${idx})" title="Borrar ruta completa" style="background:#e53935;color:#fff;border:none;border-radius:4px;padding:2px 8px;margin-left:2px;">🗑️</button>
+          <input type='file' class='input-archivo-modal' data-repartidor-idx='${idx}' data-lugar-idx='${i}' style='font-size:0.9em;margin-left:8px;'>
+          <div class='archivos-modal-lista' style='display:flex;flex-direction:column;gap:3px;margin-left:8px;'>
             ${(l.archivos||[]).map((archivo, archivoIdx) =>
-              `<div style="display:flex;align-items:center;gap:6px;">
+              `<span style='display:flex;align-items:center;gap:4px;'>
                 <a href="${archivo.datosArchivo}" download="${archivo.nombreArchivo}" style="color:#0056b3;">${archivo.nombreArchivo}</a>
                 <button onclick="window.eliminarArchivoModal(${idx},${i},${archivoIdx})" style="background:transparent;border:none;color:red;cursor:pointer;font-size:1.1em;">🗑️</button>
-              </div>`
+              </span>`
             ).join('')}
           </div>
         </li>`
       ).join('') : '');
+      // Mostrar archivos generales de la ruta (archivosEspecificos)
+      let archivosRuta = (r.archivosEspecificos && r.archivosEspecificos.length)
+        ? `<div style='margin:8px 0 8px 0;'><strong>Archivos de la ruta:</strong><ul style='margin:0 0 0 10px;padding:0;'>${r.archivosEspecificos.map((archivo, archivoIdx) =>
+            `<li style='margin-bottom:4px;display:flex;align-items:center;gap:6px;'>
+              <a href="${archivo.datosArchivo}" download="${archivo.nombreArchivo}" style="color:#0056b3;">${archivo.nombreArchivo}</a>
+              <button onclick="window.eliminarArchivoEspecifico(${idx},${archivoIdx})" style="background:transparent;border:none;color:red;cursor:pointer;font-size:1.1em;">🗑️</button>
+            </li>`
+        ).join('')}</ul></div>`
+        : '';
       return `
       <div style='border-bottom:1px solid #eee;padding:10px 0;'>
         <strong>Usuario:</strong> ${r.usuario || ''}<br>
-        <strong>Nombre:</strong> ${r.nombre}<br>
+        <strong>Nombre:</strong> ${r.nombre} ${r.apellidos || ''}<br>
         <strong>Zona:</strong> ${r.zona}<br>
         <strong>Fecha Ruta:</strong> ${r.fechaRuta || 'N/A'}<br>
         <strong>Información adicional:</strong> ${r.infoAdicional || ''}<br>
+        ${archivosRuta}
         <div style='margin:8px 0;'>
           <span style="background:#e3f0ff;color:#155ab6;padding:3px 10px;border-radius:12px;font-size:0.98em;margin-right:8px;">Total: ${total}</span>
           <span style="background:#d4edda;color:#256029;padding:3px 10px;border-radius:12px;font-size:0.98em;margin-right:8px;">✔ Realizadas: ${realizadas}</span>
@@ -1249,8 +1323,6 @@ document.addEventListener('keydown', function(event) {
     modal.style.display = 'none';
   }
 });
-
-// --- FIN ---
 
 // --- LOGIN REPARTIDOR ---
 document.addEventListener('DOMContentLoaded', function() {
@@ -1304,6 +1376,7 @@ window.guardarEdicionEntregaModal = function(repartidorIdx, lugarIdx) {
 };
 window.eliminarEntregaEmpresaModal = function(repartidorIdx, lugarIdx) {
   if (!confirm('¿Seguro que quieres eliminar esta entrega?')) return;
+
   let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
   if (repartidores[repartidorIdx] && repartidores[repartidorIdx].lugares[lugarIdx]) {
     repartidores[repartidorIdx].lugares.splice(lugarIdx, 1);
@@ -1313,12 +1386,26 @@ window.eliminarEntregaEmpresaModal = function(repartidorIdx, lugarIdx) {
   }
 };
 window.eliminarArchivoModal = function(repartidorIdx, lugarIdx, archivoIdx) {
+
+
+
   let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
   if (repartidores[repartidorIdx] && repartidores[repartidorIdx].lugares[lugarIdx] && repartidores[repartidorIdx].lugares[lugarIdx].archivos) {
     repartidores[repartidorIdx].lugares[lugarIdx].archivos.splice(archivoIdx, 1);
     localStorage.setItem('repartidores', JSON.stringify(repartidores));
     mostrarFeedback('Archivo eliminado.');
     document.getElementById('abrir-modal-rutas').click();
+  }
+};
+window.eliminarRutaCompletaEmpresaModal = function(repartidorIdx) {
+  if (!confirm('¿Seguro que quieres eliminar TODA la ruta de este repartidor? Se eliminarán todas sus entregas y archivos.')) return;
+
+  let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
+  if (repartidores[repartidorIdx]) {
+    repartidores.splice(repartidorIdx, 1);
+    localStorage.setItem('repartidores', JSON.stringify(repartidores));
+    mostrarFeedback('Ruta completa eliminada.');
+    document.getElementById('abrir-modal-rutas').click(); // Refrescar modal
   }
 };
 setTimeout(() => {
@@ -1396,3 +1483,53 @@ function adjuntarEventListenersArchivosRutaUnificado() {
   });
 }
 setTimeout(adjuntarEventListenersArchivosRutaUnificado, 600);
+
+// --- SINCRONIZACIÓN ENTRE PESTAÑAS ---
+window.addEventListener('storage', function(event) {
+  if (event.key === 'repartidores') {
+    mostrarRepartidores();
+    // Si el modal de empresa está abierto, refrescarlo
+    const modal = document.getElementById('modal-rutas-empresa');
+    if (modal && modal.style.display === 'block') {
+      document.getElementById('abrir-modal-rutas').click();
+    }
+  }
+});
+
+// --- FILTROS MAPA EMPRESA ---
+document.addEventListener('DOMContentLoaded', function() {
+  const btnAplicar = document.getElementById('btn-aplicar-filtros-mapa');
+  const btnMostrarTodas = document.getElementById('btn-mostrar-todas-rutas-mapa');
+  const filtroFecha = document.getElementById('filtro-fecha-ruta');
+  const filtroUsuario = document.getElementById('filtro-usuario-ruta');
+
+  function filtrarRutasEmpresa() {
+    let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
+    let fecha = filtroFecha.value;
+    let usuario = filtroUsuario.value;
+    let filtrados = repartidores.filter(r => {
+      let ok = true;
+      if (fecha) ok = ok && r.fechaRuta === fecha;
+      if (usuario && usuario !== 'todos') ok = ok && r.usuario === usuario;
+      return ok;
+    });
+    if (typeof actualizarVistaMapaEmpresa === 'function') {
+      actualizarVistaMapaEmpresa(filtrados);
+    }
+  }
+
+  if (btnAplicar) btnAplicar.onclick = filtrarRutasEmpresa;
+  if (btnMostrarTodas) btnMostrarTodas.onclick = function() {
+    if (typeof actualizarVistaMapaEmpresa === 'function') {
+      let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
+      actualizarVistaMapaEmpresa(repartidores);
+    }
+  };
+
+  // Rellenar select de repartidores
+  if (filtroUsuario) {
+    let repartidores = JSON.parse(localStorage.getItem('repartidores') || '[]');
+    let usuariosUnicos = Array.from(new Set(repartidores.map(r => r.usuario)));
+    filtroUsuario.innerHTML = '<option value="todos">Todos los repartidores</option>' + usuariosUnicos.map(u => `<option value="${u}">${u}</option>`).join('');
+  }
+});

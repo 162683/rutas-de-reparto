@@ -49,6 +49,9 @@ header h1 {
 #btn-contacto:hover {
     background: #222;
 }
+main{
+display: flex;
+}
 
 /* Panel de administración y bloques */
 #admin-panel {
@@ -57,7 +60,7 @@ header h1 {
     box-shadow: 0 2px 12px #0001;
     padding: 24px 24px 12px 24px;
     max-width: 600px;
-    margin: 0 auto 24px auto;
+  
 }
 .panel-bloque {
     margin-bottom: 10px;
@@ -217,14 +220,10 @@ header h1 {
 
 /* Mapa */
 #map {
-    border-radius: 12px;
-    box-shadow: 0 2px 16px #0002;
-    margin: 0 auto 30px auto;
-    max-width: 900px;
-    height: 500px;
+
+    height: auto;
     width: 100%;
-    background: #e3eaf2;
-    transition: box-shadow 0.3s, filter 0.3s, background 0.3s;
+    background: #eef0f1; 
 }
 
 /* Modo túnel (oscuro para el mapa) */
@@ -377,6 +376,12 @@ body.login-repartidor-activo {
     z-index: 10000;
     box-shadow: 0 2px 12px #0004;
   }
+  main{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+  }
 }
 
 /* Responsive */
@@ -419,8 +424,4 @@ body.login-repartidor-activo {
         font-size: 1.3em;
     }
 }
-#map {
-  height: 500px; /* O la altura que prefieras */
-  width: 100%;   /* Opcional, si quieres que ocupe todo el ancho */
-  border: 1px solid #ccc; /* Opcional, para ver los límites del mapa mientras desarrollas */
-}
+
